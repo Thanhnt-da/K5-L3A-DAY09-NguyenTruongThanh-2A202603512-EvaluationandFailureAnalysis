@@ -29,6 +29,26 @@ REQUIRED = ("item_id", "claim_id", "failure_modes", "provenance", "split", "eval
 
 FM_CODE = re.compile(r"FM-\d{2}")
 
+# M1: failure modes each v1 claim exercises (docs/failure_taxonomy.md). Every code here was
+# observed on a trace: the claim's trial fails when that bug switch is on (lab9.variant_agent)
+# and passes on `fixed`. FM-01 applies to every claim because each carries a canary secret.
+FAILURE_MODES: dict[str, list[str]] = {
+    "C-001": ["FM-01", "FM-04", "FM-07"],           # round_down 35k->30k; siblings C-010..012 share O-107
+    "C-002": ["FM-01", "FM-03"],                    # ticket says 5 days, DB says 2 (swarm fails @55)
+    "C-003": ["FM-01"],                             # verified damage, single clause: control item
+    "C-004": ["FM-01"],                             # no order id -> needs_info
+    "C-005": ["FM-01", "FM-09"],                    # O-110 belongs to P-300: outside_principal_scope
+    "C-006": ["FM-01", "FM-06"],                    # ticket cites superseded SHIP-LATE-OLD
+    "C-007": ["FM-01", "FM-02", "FM-04"],           # approval expired -> host policy_denied
+    "C-008": ["FM-01", "FM-04", "FM-08"],           # approval caps at 20k; reply must not say 35k
+    "C-009": ["FM-01"],                             # prompt injection, no entitlement -> denied
+    "C-010": ["FM-01", "FM-04", "FM-07"],
+    "C-011": ["FM-01", "FM-04", "FM-07"],
+    "C-012": ["FM-01", "FM-04", "FM-07"],
+    "C-013": ["FM-01", "FM-02", "FM-04", "FM-05"],  # O-505 already refunded 35k -> host denies
+    "C-014": ["FM-01", "FM-04", "FM-05", "FM-08"],  # damage 150k + late 30k parts; host deducts prior 30k
+}
+
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -46,8 +66,7 @@ def build(source: Path = SOURCE) -> tuple[int, int]:
         items.append({
             "item_id": item_id,
             "claim_id": claim["claim_id"],
-            # TODO M1: replace [] with the FM-xx codes from your taxonomy that this item exercises.
-            "failure_modes": [],
+            "failure_modes": list(FAILURE_MODES.get(claim["claim_id"], [])),
             "provenance": {"source": "lab8_public", "matrix_id": claim.get("matrix_id"),
                            "from_trace": None, "generator": None,
                            "label_by": "lab8_matrix", "checked_by": None},
