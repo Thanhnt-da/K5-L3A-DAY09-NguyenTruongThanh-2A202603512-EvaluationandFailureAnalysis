@@ -7,6 +7,9 @@ replaces the DB fact with the ticket's number. Runs the shapes on a temp store (
 import pytest
 
 pytestmark = pytest.mark.student
+# Lab 8's cross-platform CI installs only Lab 8 deps and runs `-m student -k swarm`, which selects
+# the swarm case below; skip there instead of failing. The eval-gate job installs pydantic-evals.
+pytest.importorskip("pydantic_evals")
 
 
 def _ctx(case):
