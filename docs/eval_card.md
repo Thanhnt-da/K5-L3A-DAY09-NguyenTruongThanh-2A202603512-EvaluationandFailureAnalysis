@@ -104,3 +104,20 @@ python -m lab9.eval --shape seeded_regression && python -m lab9.gate --pr report
 - **Lỗi 1/5 seed giống hệt độ chập chờn của baseline không tách được.** Thử `sum_parts` chỉ ở seed 33: `pass_hat_5` = 0.893, **bằng đúng baseline** (baseline cũng fail 3 item ở seed 55), money_movement = 0.95 = sàn. Không sàn nào chặn nó mà không chặn luôn baseline.
 - **Lỗi xuất hiện ở 1/3 seed (`rare`) không phát hiện ổn định với 5 seed:** trong 5 seed chỉ khoảng 1–2 seed trúng, và tùy bộ seed có thể không trúng seed nào. Cần nhiều seed hơn (k lớn hơn) hoặc nhiều item hơn, không phải hạ ngưỡng cho tới khi gate "bắt được".
 - 14 item adversarial và 12 item money_movement: CI theo slice rộng (vd. [−0.300, 0.000]), nên slice gate dựa chủ yếu vào sàn tuyệt đối.
+
+## M7: chống gian lận eval (`gate.integrity_check` + ratchet)
+
+Gate kiểm report **có đáng tin không** trước khi so số. Một report hỏng mà vẫn được so ngưỡng còn tệ hơn không có gate.
+
+| Kiểm tra | Bắt trò gì |
+|---|---|
+| Metric NaN/inf | grader crash → NaN; `nan < min` là False nên gate ngây thơ cho qua |
+| `evaluator_failures` khác rỗng; ô metric đã chấm mà là None / không phải bool | lỗi grader biến thành "thiếu dữ liệu" rồi rơi khỏi trung bình |
+| Số dòng = items × seeds; không trùng (item, seed); tập (item, seed) và `manifest.items/seeds` trùng baseline và spec | bỏ dòng fail, chọn seed đẹp, nhân bản dòng pass, thêm seed |
+| Metric tính lại từ rows phải bằng metric báo cáo | sửa tay phần tổng hợp trên rows trung thực |
+| Slice của từng item trùng baseline | gỡ item fail khỏi slice `money_movement` |
+| Ratchet với `--base-spec` (cùng `eval_set_version`) | hạ `min`, tăng `max`, bỏ `no_significant_drop`, bỏ `blocking`, xóa metric/slice, tăng `confidence` của bootstrap, đổi seeds |
+
+**Kết quả:** 4/4 trap công khai bị chặn với lý do `INTEGRITY` (`python -m lab9.traps --pr reports/eval_slice_regression.json --baseline reports/baseline_v2.json --spec config/metric_spec_v2.yaml` → exit 0). 13 trap tự chế thêm (dòng trùng giữ nguyên số dòng, `evaluator_failures` trên run xanh, chép metric từ baseline, gỡ slice, một metric NaN, ô không phải bool, thêm seed, xóa/hạ/bỏ chặn slice hoặc metric, CI rộng hơn) đều bị chặn. Không báo nhầm: scorecard vẫn 3/3, 0 báo nhầm (cả khi bật ratchet với chính spec); baseline so với chính nó merge; gate v1 không đổi.
+
+**Giới hạn còn lại:** `integrity_check` chỉ thấy *report*. Nếu ai đó sửa giá trị trong rows (False → True) rồi tính lại metric cho khớp, report vẫn nhất quán và gate không phát hiện được từ file. Phòng tuyến là CI tự chạy lại eval: job `eval-gate` chạy `lab9.eval` trên PR và `ci_check` so baseline với lần chạy của CI; job `eval-gate-v2` chạy `lab9.mutation` từ đầu. Report commit sẵn chỉ là bằng chứng, không phải nguồn sự thật.
