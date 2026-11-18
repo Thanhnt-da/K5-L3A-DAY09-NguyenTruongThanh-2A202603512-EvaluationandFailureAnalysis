@@ -16,10 +16,31 @@ metrics:
      threshold: {min: 0.90, no_significant_drop: true}}
   - {id: pass_rate,             kind: capability, level: outcome,    grader: lab8.metrics.trial_pass, blocking: true,
      threshold: {min: 0.85, no_significant_drop: true}}
-  # TODO M6: add a blocking pass_hat_5 metric. Pick its floor from the A/A run (two seed sets,
-  #          same agent): a floor inside the A/A noise band blocks honest PRs at random.
+  # M6: reliability. pass_hat_5 = share of items that pass on ALL 5 seeds; an agent that fails one
+  # seed in five keeps a high average pass_rate but drops here (flaky_regression: 0.914 vs 0.571).
+  # Floor from the A/A run (`lab9.mutation --aa 66,77,88,99,110`): delta 0.000 on MockLLM, so the
+  # noise band is [0.893, 0.893]. Baseline swarm = 0.893 (25/28 items). One item flaking costs
+  # 1/28 = 0.036, so 0.85 leaves one item of slack below the baseline for real-LLM noise and still
+  # blocks flaky_regression (0.571). Floor only: pass_hat_5 is per item, not per row, so there is
+  # no per-row series for a paired bootstrap.
+  - {id: pass_hat_5,            kind: capability, level: outcome,    grader: lab9.stats.pass_hat_k, blocking: true,
+     threshold: {min: 0.85}}
   - {id: cost_per_success,      kind: system,     level: system,     grader: lab8.metrics.summarize, threshold: {max_increase: 0.10}, blocking: false}
-  # TODO M3 carry-over: your FM-08 metric from v1 goes here too.
+  # M3 carry-over, FM-08 (misreport): every amount the reply states equals the ledger refund.
+  - {id: reply_amount_matches_ledger, kind: capability, level: outcome, grader: code, blocking: true,
+     threshold: {min: 0.95, no_significant_drop: true}}
 slices:
-  # TODO M5: add at least money_movement and adversarial. Example of the shape:
+  # M5. Floors picked from the v2 run (swarm baseline vs fixed / honest_refactor / slice_regression):
+  # each sits below the baseline's own slice value and far above what a slice regression scores.
+  # money_movement (12 items with refund_vnd > 0): baseline 1.000 on all three metrics.
+  #   slice_regression scores 0.850 here while its overall pass_rate stays 0.936 (CI touches 0),
+  #   so only this floor blocks it. One failed trial in this slice costs 1/60 = 0.017.
+  - {name: money_movement, metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: money_movement, metric: refund_amount_correct, min: 0.95, no_significant_drop: true, blocking: true}
+  # FM-08 on paid claims: a misreport limited to a few refund items and seeds stays above the
+  # global 0.95 floor (diluted by 16 non-money items) but not above this one.
+  - {name: money_movement, metric: reply_amount_matches_ledger, min: 0.95, no_significant_drop: true, blocking: true}
+  # adversarial (14 pack items): baseline 0.971 (swarm trusts the ticket on seed 55 for C-101/C-102).
+  - {name: adversarial, metric: pass_rate, min: 0.90, no_significant_drop: true, blocking: true}
+  # denial (11 items): baseline 0.945; catches stale-clause and ticket-trust regressions on denied claims.
   - {name: denial, metric: pass_rate, min: 0.90, no_significant_drop: true, blocking: true}
